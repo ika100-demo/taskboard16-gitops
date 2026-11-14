@@ -3,59 +3,105 @@ plan_id: 001-persistent-tasks-in-postgres-with-a-web
 spec: 001-persistent-tasks-in-postgres-with-a-web
 feature: Persistent tasks in Postgres with a web UI to view and create them
 gitops_app: ika100-demo/taskboard16-gitops
-status: draft
+status: completed
 repos:
-  - id: taskboard16-gitops
-    shape: gitops-app
-    summary: Declare the taskboard16 Postgres database, give it to taskboard16-api and point taskboard16-web at the API
-    acs: [AC-001.1, AC-001.2, AC-001.3]
-    order: before-merge
-    gitops:
-      - {resource: postgres, type: database}
-      - {uses: postgres, component: taskboard16-api}
-      - {env: {API_URL: 'http://taskboard16-api'}, component: taskboard16-web}
-    depends_on: []
-    done: false
-  - id: taskboard16-api
-    shape: service-python
-    summary: Store tasks in Postgres so they survive restarts and are shared by every instance
-    acs: [AC-001.1, AC-001.2, AC-001.5, AC-001.6, AC-001.7]
-    criteria:
-      - "Given a task created with `POST /tasks` `{\"title\": \"Buy milk\", \"due_date\": \"2026-12-01\"}`, when the service restarts against the same database and a client sends `GET /tasks`, then the response is 200 and holds that task with the same `id`, `title` and `due_date` (system AC-001.1) (replaces AC-001.7)"
-      - "Given two service instances using the same `DATABASE_URL`, when a client creates a task with `POST /tasks` through one of them, then `GET /tasks` answered by either instance is 200 and holds that task, and the list is oldest first by creation time (system AC-001.2, AC-001.5)"
-      - "Given a running service with a reachable database, when a client sends `POST /tasks` with `{\"title\": \"Call Anna\"}` and then `GET /tasks`, then the POST answers 201 with `\"due_date\": null` and the task is the last element of the GET array with that `id`, `title` and `due_date` (system AC-001.5)"
-      - "Given a running service, when a client sends `POST /tasks` whose `title` is empty, only whitespace or longer than 200 characters after trimming, then the response is 422 and `GET /tasks` returns the same array as before (system AC-001.6)"
-      - "Given the database is unreachable, when a client sends `GET /tasks` or `POST /tasks`, then the response is 503 with the body `{\"detail\": \"Task storage unavailable\"}` within 5 seconds, and `GET /ready` answers 503 (system AC-001.7)"
-      - "Given the database was unreachable while a client sent `POST /tasks` (answered 503), when the database is reachable again, then `GET /ready` answers 200 and `GET /tasks` does not hold the task sent during the outage (system AC-001.7)"
-      - "Given an empty database on first start, when the service starts, then it creates its schema itself and `GET /tasks` answers 200 with `[]` (system AC-001.1)"
-    arguments: |
-      Storage moves from the in-memory TaskStore to Postgres; connection settings come only from DATABASE_URL / PG*
-      (injected by the gitops entry's `uses: postgres`). Remove the non-goal "Persistent storage" from the old spec's
-      scope in the new spec. Ordering is by a server-side creation timestamp plus a tie-breaker (e.g. a bigserial),
-      never by the uuid. Schema is created on startup idempotently (two instances may start at once). The request
-      and response contract of POST/GET /tasks is unchanged (system A1). /health stays DB-independent.
-    depends_on: []
-    done: false
-  - id: taskboard16-web
-    shape: web-nextjs
-    summary: Show all tasks and a create form on the Taskboard start page, backed by the Task API
-    acs: [AC-001.3, AC-001.4, AC-001.5, AC-001.6, AC-001.8]
-    criteria:
-      - "Given the Task API returns three tasks from `GET /tasks`, when a user opens the start page `/`, then the page lists the three tasks in the API's order (oldest first), each showing its title and its due date as `YYYY-MM-DD`, or \"No due date\" when `due_date` is null (system AC-001.3)"
-      - "Given the Task API returns `[]` from `GET /tasks`, when a user opens the start page, then the page shows \"No tasks yet\" and the create form (system AC-001.4)"
-      - "Given the start page, when a user enters the title \"Call Anna\" with or without a due date and submits the create form, then the web UI sends `POST /tasks` with that `title` and `due_date` (`YYYY-MM-DD` or null), and within 2 seconds the returned task appears at the end of the list without a manual reload and the form is cleared (system AC-001.5)"
-      - "Given the create form, when a user submits a title that is empty, only whitespace or longer than 200 characters after trimming, then the form shows \"Title must be 1 to 200 characters\", keeps the entered values and sends no `POST /tasks` (system AC-001.6)"
-      - "Given the create form with a valid title, when the Task API answers `POST /tasks` with 422, then the form shows \"Title must be 1 to 200 characters\", keeps the entered values and the list is unchanged (system AC-001.6)"
-      - "Given the Task API answers `GET /tasks` with 503, any other non-200 status, an unreadable body, or does not answer within 6 seconds, when a user opens the start page, then the page loads with status 200 and shows \"Tasks could not be loaded. Please try again later.\" instead of the list (system AC-001.8)"
-      - "Given the Task API answers `POST /tasks` with 503, any status other than 201 or 422, or does not answer within 6 seconds, when a user submits the create form, then the form shows \"The task could not be saved. Please try again.\" and keeps the entered values (system AC-001.8)"
-      - "Given the Task API is down, when the platform calls `/api/ready` and `/api/health`, then both still answer 200, so the page stays reachable (system AC-001.8)"
-    arguments: |
-      The start page replaces the starter page (system A3). The API is called only from the Next.js server
-      (Server Component for the list, Server Action or route handler for create) using the server-side env var
-      API_URL (no NEXT_PUBLIC_*, no browser-to-API call, no CORS). Document API_URL in docs/env-vars.md.
-      Tests stub the Task API at API_URL; no login (system A10).
-    depends_on: []
-    done: false
+- id: taskboard16-gitops
+  shape: gitops-app
+  summary: Declare the taskboard16 Postgres database, give it to taskboard16-api and point taskboard16-web
+    at the API
+  acs:
+  - AC-001.1
+  - AC-001.2
+  - AC-001.3
+  order: before-merge
+  gitops:
+  - resource: postgres
+    type: database
+  - uses: postgres
+    component: taskboard16-api
+  - env:
+      API_URL: http://taskboard16-api
+    component: taskboard16-web
+  depends_on: []
+  done: true
+- id: taskboard16-api
+  shape: service-python
+  summary: Store tasks in Postgres so they survive restarts and are shared by every instance
+  acs:
+  - AC-001.1
+  - AC-001.2
+  - AC-001.5
+  - AC-001.6
+  - AC-001.7
+  criteria:
+  - 'Given a task created with `POST /tasks` `{"title": "Buy milk", "due_date": "2026-12-01"}`, when the
+    service restarts against the same database and a client sends `GET /tasks`, then the response is 200
+    and holds that task with the same `id`, `title` and `due_date` (system AC-001.1) (replaces AC-001.7)'
+  - Given two service instances using the same `DATABASE_URL`, when a client creates a task with `POST
+    /tasks` through one of them, then `GET /tasks` answered by either instance is 200 and holds that task,
+    and the list is oldest first by creation time (system AC-001.2, AC-001.5)
+  - 'Given a running service with a reachable database, when a client sends `POST /tasks` with `{"title":
+    "Call Anna"}` and then `GET /tasks`, then the POST answers 201 with `"due_date": null` and the task
+    is the last element of the GET array with that `id`, `title` and `due_date` (system AC-001.5)'
+  - Given a running service, when a client sends `POST /tasks` whose `title` is empty, only whitespace
+    or longer than 200 characters after trimming, then the response is 422 and `GET /tasks` returns the
+    same array as before (system AC-001.6)
+  - 'Given the database is unreachable, when a client sends `GET /tasks` or `POST /tasks`, then the response
+    is 503 with the body `{"detail": "Task storage unavailable"}` within 5 seconds, and `GET /ready` answers
+    503 (system AC-001.7)'
+  - Given the database was unreachable while a client sent `POST /tasks` (answered 503), when the database
+    is reachable again, then `GET /ready` answers 200 and `GET /tasks` does not hold the task sent during
+    the outage (system AC-001.7)
+  - Given an empty database on first start, when the service starts, then it creates its schema itself
+    and `GET /tasks` answers 200 with `[]` (system AC-001.1)
+  arguments: |
+    Storage moves from the in-memory TaskStore to Postgres; connection settings come only from DATABASE_URL / PG*
+    (injected by the gitops entry's `uses: postgres`). Remove the non-goal "Persistent storage" from the old spec's
+    scope in the new spec. Ordering is by a server-side creation timestamp plus a tie-breaker (e.g. a bigserial),
+    never by the uuid. Schema is created on startup idempotently (two instances may start at once). The request
+    and response contract of POST/GET /tasks is unchanged (system A1). /health stays DB-independent.
+  depends_on: []
+  done: true
+- id: taskboard16-web
+  shape: web-nextjs
+  summary: Show all tasks and a create form on the Taskboard start page, backed by the Task API
+  acs:
+  - AC-001.3
+  - AC-001.4
+  - AC-001.5
+  - AC-001.6
+  - AC-001.8
+  criteria:
+  - Given the Task API returns three tasks from `GET /tasks`, when a user opens the start page `/`, then
+    the page lists the three tasks in the API's order (oldest first), each showing its title and its due
+    date as `YYYY-MM-DD`, or "No due date" when `due_date` is null (system AC-001.3)
+  - Given the Task API returns `[]` from `GET /tasks`, when a user opens the start page, then the page
+    shows "No tasks yet" and the create form (system AC-001.4)
+  - Given the start page, when a user enters the title "Call Anna" with or without a due date and submits
+    the create form, then the web UI sends `POST /tasks` with that `title` and `due_date` (`YYYY-MM-DD`
+    or null), and within 2 seconds the returned task appears at the end of the list without a manual reload
+    and the form is cleared (system AC-001.5)
+  - Given the create form, when a user submits a title that is empty, only whitespace or longer than 200
+    characters after trimming, then the form shows "Title must be 1 to 200 characters", keeps the entered
+    values and sends no `POST /tasks` (system AC-001.6)
+  - Given the create form with a valid title, when the Task API answers `POST /tasks` with 422, then the
+    form shows "Title must be 1 to 200 characters", keeps the entered values and the list is unchanged
+    (system AC-001.6)
+  - Given the Task API answers `GET /tasks` with 503, any other non-200 status, an unreadable body, or
+    does not answer within 6 seconds, when a user opens the start page, then the page loads with status
+    200 and shows "Tasks could not be loaded. Please try again later." instead of the list (system AC-001.8)
+  - Given the Task API answers `POST /tasks` with 503, any status other than 201 or 422, or does not answer
+    within 6 seconds, when a user submits the create form, then the form shows "The task could not be
+    saved. Please try again." and keeps the entered values (system AC-001.8)
+  - Given the Task API is down, when the platform calls `/api/ready` and `/api/health`, then both still
+    answer 200, so the page stays reachable (system AC-001.8)
+  arguments: |
+    The start page replaces the starter page (system A3). The API is called only from the Next.js server
+    (Server Component for the list, Server Action or route handler for create) using the server-side env var
+    API_URL (no NEXT_PUBLIC_*, no browser-to-API call, no CORS). Document API_URL in docs/env-vars.md.
+    Tests stub the Task API at API_URL; no login (system A10).
+  depends_on: []
+  done: true
 gitops_pin: []
 ---
 
