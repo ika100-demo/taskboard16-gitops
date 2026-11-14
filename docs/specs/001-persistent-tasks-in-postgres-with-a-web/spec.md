@@ -1,7 +1,7 @@
 ---
 spec_id: 001-persistent-tasks-in-postgres-with-a-web
 title: Persistent tasks in Postgres with a web UI to view and create them
-status: draft
+status: approved
 priority: P1
 shape: gitops-app
 ---
@@ -69,3 +69,4 @@ As a taskboard user, I want to create a task with a title and an optional due da
 
 - 2026-11-14 created
 - 2026-11-14 amended: answered the access question (no login, accepted for dev; login is a follow-up spec before staging/prod), folded into A10 and Non-goals
+- 2026-11-14 approved
